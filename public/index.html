@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload de Arquivos - Jangadeiro Têxtil</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notiflix@3.2.6/dist/notiflix-3.2.6.min.css">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+    .upload-container { background-color: #ffffff; padding: 30px 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); text-align: center; width: 90%; max-width: 450px; }
+    .logo-image { max-width: 280px; height: auto; margin-bottom: 10px; }
+    h2 { color: #333; margin-top: 0; margin-bottom: 25px; font-size: 18px; font-weight: 400; }
+    #fileInput { display: none; }
+    .file-label { display: inline-flex; align-items: center; justify-content: center; padding: 12px 20px; background-color: #e4e6eb; color: #333; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background-color 0.2s; }
+    .file-label:hover { background-color: #d8dbe0; }
+    .file-label svg { margin-right: 8px; }
+    #fileName { margin-top: 15px; color: #555; font-style: italic; min-height: 20px; word-break: break-all; }
+    #uploadButton { width: 100%; padding: 12px 20px; font-size: 16px; font-weight: 600; color: #fff; background-color: #007bff; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; transition: background-color 0.2s, opacity 0.2s; }
+    #uploadButton:hover:not(:disabled) { background-color: #0056b3; }
+    #uploadButton:disabled { background-color: #a0c7ff; cursor: not-allowed; }
+    #progressBar { width: 100%; background-color: #e9ecef; border-radius: 8px; margin-top: 20px; height: 12px; overflow: hidden; display: none; }
+    #progressFill { height: 100%; width: 0%; background-color: #28a745; border-radius: 8px; transition: width 0.3s ease-in-out; }
+  </style>
+</head>
+<body>
+  <div class="upload-container">
+    <div class="branding">
+      <img src="https://i.postimg.cc/1zzNm0Ln/Whats-App-Image-2025-06-11-at-11-55-30.jpg" alt="Logo Jangadeiro Têxtil" class="logo-image">
+    </div>
+    <h2>Portal de Envio Seguro de Arquivos</h2>
+    <input type="file" id="fileInput" onchange="handleFileSelect(this)">
+    <label for="fileInput" class="file-label">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+      Escolher arquivo...
+    </label>
+    <p id="fileName"></p>
+    <button id="uploadButton" onclick="startUpload()" disabled>Enviar</button>
+    <div id="progressBar">
+      <div id="progressFill"></div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/notiflix@3.2.6/dist/notiflix-aio-3.2.6.min.js"></script>
+  <script>
+    let file;
+    let uploadUrl;
+    let offset = 0;
+    const chunkSize = 10 * 1024 * 1024;
+    const fileInputElement = document.getElementById('fileInput');
+    const fileNameElement = document.getElementById('fileName');
+    const uploadButton = document.getElementById('uploadButton');
+    const progressBarElement = document.getElementById('progressBar');
+    const progressFillElement = document.getElementById('progressFill');
+    Notiflix.Notify.init({ position: 'right-bottom' });
+    Notiflix.Loading.init({ svgColor: '#007bff' });
+    function handleFileSelect(input) {
+      if (input.files.length > 0) {
+        file = input.files[0];
+        fileNameElement.textContent = file.name;
+        uploadButton.disabled = false;
+        resetUI();
+      } else {
+        file = null;
+        fileNameElement.textContent = '';
+        uploadButton.disabled = true;
+      }
+    }
+    function resetUI() {
+        progressBarElement.style.display = 'none';
+        progressFillElement.style.width = '0%';
+    }
+    async function startUpload() {
+      if (!file) {
+        Notiflix.Notify.warning('Por favor, selecione um arquivo primeiro.');
+        return;
+      }
+      offset = 0;
+      setControlsDisabled(true);
+      progressBarElement.style.display = 'block';
+      Notiflix.Loading.circle('Iniciando upload...');
+      const fileInfo = { name: file.name, size: file.size, type: file.type || 'application/octet-stream' };
+      try {
+        const response = await fetch('/.netlify/functions/create-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fileInfo)
+        });
+        const data = await response.json();
+        if (data.success) {
+          onSessionCreated(data);
+        } else {
+          throw new Error(data.message || 'Falha ao criar sessão no servidor.');
+        }
+      } catch (error) {
+        onFailure(error);
+      }
+    }
+    function onSessionCreated(response) {
+      uploadUrl = response.uploadUrl;
+      Notiflix.Loading.change('Enviando arquivo...');
+      uploadNextChunk();
+    }
+    async function uploadNextChunk() {
+      if (offset >= file.size) { return; }
+      const chunkEnd = Math.min(offset + chunkSize, file.size);
+      const chunk = file.slice(offset, chunkEnd);
+      try {
+        const response = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Range': `bytes ${offset}-${chunkEnd - 1}/${file.size}` },
+          body: chunk
+        });
+        if (response.status === 308) {
+          offset = chunkEnd;
+          updateProgress(offset, file.size);
+          uploadNextChunk();
+        } else if (response.ok) {
+          updateProgress(file.size, file.size);
+          Notiflix.Loading.remove();
+          Notiflix.Notify.success('Upload concluído com sucesso!');
+          setControlsDisabled(false);
+          fileInputElement.value = '';
+          fileNameElement.textContent = 'Escolha outro arquivo para enviar.';
+        } else {
+          const errorText = await response.text();
+          throw new Error(`Erro no upload. Status: ${response.status}. Resposta: ${errorText}`);
+        }
+      } catch (error) {
+        onFailure(error);
+      }
+    }
+    function updateProgress(sent, total) {
+      if (total === 0) return;
+      const percent = Math.round((sent / total) * 100);
+      progressFillElement.style.width = percent + '%';
+      const megabytesSent = (sent / (1024 * 1024)).toFixed(1);
+      const megabytesTotal = (total / (1024 * 1024)).toFixed(1);
+      Notiflix.Loading.change(`Enviando... ${percent}% (${megabytesSent}MB / ${megabytesTotal}MB)`);
+    }
+    function onFailure(error) {
+      Notiflix.Loading.remove();
+      Notiflix.Notify.failure(`ERRO: ${error.message}`);
+      console.error('Detalhes do erro:', error);
+      setControlsDisabled(false);
+    }
+    function setControlsDisabled(disabled) {
+      uploadButton.disabled = disabled;
+      fileInputElement.disabled = disabled;
+    }
+  </script>
+</body>
+</html>
