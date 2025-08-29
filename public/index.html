@@ -1,150 +1,217 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upload de Arquivos - Jangadeiro Têxtil</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notiflix@3.2.6/dist/notiflix-3.2.6.min.css">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-    .upload-container { background-color: #ffffff; padding: 30px 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); text-align: center; width: 90%; max-width: 450px; }
-    .logo-image { max-width: 280px; height: auto; margin-bottom: 10px; }
-    h2 { color: #333; margin-top: 0; margin-bottom: 25px; font-size: 18px; font-weight: 400; }
-    #fileInput { display: none; }
-    .file-label { display: inline-flex; align-items: center; justify-content: center; padding: 12px 20px; background-color: #e4e6eb; color: #333; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background-color 0.2s; }
-    .file-label:hover { background-color: #d8dbe0; }
-    .file-label svg { margin-right: 8px; }
-    #fileName { margin-top: 15px; color: #555; font-style: italic; min-height: 20px; word-break: break-all; }
-    #uploadButton { width: 100%; padding: 12px 20px; font-size: 16px; font-weight: 600; color: #fff; background-color: #007bff; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; transition: background-color 0.2s, opacity 0.2s; }
-    #uploadButton:hover:not(:disabled) { background-color: #0056b3; }
-    #uploadButton:disabled { background-color: #a0c7ff; cursor: not-allowed; }
-    #progressBar { width: 100%; background-color: #e9ecef; border-radius: 8px; margin-top: 20px; height: 12px; overflow: hidden; display: none; }
-    #progressFill { height: 100%; width: 0%; background-color: #28a745; border-radius: 8px; transition: width 0.3s ease-in-out; }
+    body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; color: #333; }
+    header { background-color: #444; padding: 15px; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    header img { height: 60px; }
+    main { display: flex; justify-content: center; align-items: flex-start; padding: 40px 20px; }
+    .container { max-width: 600px; width: 100%; }
+    .form-box, .upload-box { border: 1px solid #ddd; border-radius: 15px; padding: 40px; text-align: center; background-color: #fff; box-shadow: 0px 4px 12px rgba(0,0,0,0.1); margin-bottom: 30px; }
+    .form-box h2, .upload-box h2 { color: #c0392b; margin-top: 0; }
+    .form-group { text-align: left; margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-weight: bold; }
+    .form-group input, .form-group textarea { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
+    .form-group textarea { resize: vertical; min-height: 100px; }
+    #drop_zone { border: 3px dashed #c0392b; border-radius: 15px; padding: 40px; cursor: pointer; transition: background-color 0.3s; }
+    #drop_zone.dragover { background-color: #fde8e6; }
+    #file_input { display: none; }
+    #file_list { text-align: left; margin-top: 20px; font-style: italic; color: #555; }
+    .btn-upload { margin-top: 25px; padding: 12px 25px; background-color: #c0392b; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: background 0.3s, opacity 0.3s; }
+    .btn-upload:hover:not(:disabled) { background-color: #a93226; }
+    .btn-upload:disabled { background-color: #e5a19a; cursor: not-allowed; }
+    #progress_wrapper { display: none; margin-top: 20px; }
+    #progress_bar { width: 100%; background-color: #eee; border-radius: 8px; overflow: hidden; }
+    #progress_fill { width: 0%; height: 24px; background-color: #27ae60; border-radius: 8px; text-align: center; line-height: 24px; color: white; font-weight: bold; transition: width 0.3s; }
+    #status_text { font-weight: bold; margin-top: 10px; min-height: 20px; }
   </style>
 </head>
 <body>
-  <div class="upload-container">
-    <div class="branding">
-      <img src="https://i.postimg.cc/1zzNm0Ln/Whats-App-Image-2025-06-11-at-11-55-30.jpg" alt="Logo Jangadeiro Têxtil" class="logo-image">
+  <header>
+    <img src="https://i.postimg.cc/15x2N2z8/Logo-Oficial.png" alt="Jangadeiro Têxtil">
+  </header>
+
+  <main>
+    <div class="container">
+      <div class="form-box">
+        <h2>Informações do Cliente</h2>
+        <div class="form-group">
+          <label for="client_name">Nome do Cliente (Obrigatório)</label>
+          <input type="text" id="client_name">
+        </div>
+        <div class="form-group">
+          <label for="cnpj">CNPJ ou Razão Social</label>
+          <input type="text" id="cnpj">
+        </div>
+        <div class="form-group">
+          <label for="client_info">Informações Adicionais</label>
+          <textarea id="client_info"></textarea>
+        </div>
+      </div>
+
+      <div class="upload-box">
+        <div id="drop_zone">
+          <h2>Arraste ou clique para selecionar os arquivos</h2>
+          <p id="file_list">Nenhum arquivo selecionado</p>
+          <input type="file" id="file_input" multiple>
+        </div>
+        <button id="upload_button" class="btn-upload" disabled>Enviar Arquivos</button>
+        <div id="progress_wrapper">
+          <p id="status_text"></p>
+          <div id="progress_bar"><div id="progress_fill">0%</div></div>
+        </div>
+      </div>
     </div>
-    <h2>Portal de Envio Seguro de Arquivos</h2>
-    <input type="file" id="fileInput" onchange="handleFileSelect(this)">
-    <label for="fileInput" class="file-label">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-      Escolher arquivo...
-    </label>
-    <p id="fileName"></p>
-    <button id="uploadButton" onclick="startUpload()" disabled>Enviar</button>
-    <div id="progressBar">
-      <div id="progressFill"></div>
-    </div>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/notiflix@3.2.6/dist/notiflix-aio-3.2.6.min.js"></script>
+  </main>
+
   <script>
-    let file;
-    let uploadUrl;
-    let offset = 0;
+    const CONCURRENCY_LIMIT = 3;
     const chunkSize = 10 * 1024 * 1024;
-    const fileInputElement = document.getElementById('fileInput');
-    const fileNameElement = document.getElementById('fileName');
-    const uploadButton = document.getElementById('uploadButton');
-    const progressBarElement = document.getElementById('progressBar');
-    const progressFillElement = document.getElementById('progressFill');
-    Notiflix.Notify.init({ position: 'right-bottom' });
-    Notiflix.Loading.init({ svgColor: '#007bff' });
-    function handleFileSelect(input) {
-      if (input.files.length > 0) {
-        file = input.files[0];
-        fileNameElement.textContent = file.name;
+
+    const dropZone = document.getElementById('drop_zone');
+    const fileInput = document.getElementById('file_input');
+    const fileList = document.getElementById('file_list');
+    const uploadButton = document.getElementById('upload_button');
+    const clientNameInput = document.getElementById('client_name');
+    const cnpjInput = document.getElementById('cnpj');
+    const clientInfoInput = document.getElementById('client_info');
+    const progressWrapper = document.getElementById('progress_wrapper');
+    const progressFill = document.getElementById('progress_fill');
+    const statusText = document.getElementById('status_text');
+    
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); fileInput.files = e.dataTransfer.files; updateFileList(); });
+    fileInput.addEventListener('change', updateFileList);
+    uploadButton.addEventListener('click', startUpload);
+
+    function updateFileList() {
+      if (fileInput.files.length > 0) {
+        fileList.innerHTML = Array.from(fileInput.files).map(f => `<div>- ${f.name}</div>`).join('');
         uploadButton.disabled = false;
-        resetUI();
       } else {
-        file = null;
-        fileNameElement.textContent = '';
+        fileList.textContent = 'Nenhum arquivo selecionado';
         uploadButton.disabled = true;
       }
     }
-    function resetUI() {
-        progressBarElement.style.display = 'none';
-        progressFillElement.style.width = '0%';
-    }
+
     async function startUpload() {
-      if (!file) {
-        Notiflix.Notify.warning('Por favor, selecione um arquivo primeiro.');
+      const files = Array.from(fileInput.files);
+      if (files.length === 0 || !clientNameInput.value.trim()) {
+        alert('Por favor, preencha o nome do cliente e selecione ao menos um arquivo.');
         return;
       }
-      offset = 0;
+
       setControlsDisabled(true);
-      progressBarElement.style.display = 'block';
-      Notiflix.Loading.circle('Iniciando upload...');
-      const fileInfo = { name: file.name, size: file.size, type: file.type || 'application/octet-stream' };
+      progressWrapper.style.display = 'block';
+      updateProgress(0, "Preparando upload...");
+
+      const totalSize = files.reduce((acc, file) => acc + file.size, 0);
+      let totalSent = 0;
+
       try {
-        const response = await fetch('/.netlify/functions/create-session', {
+        const prepareResponse = await fetch('/.netlify/functions/create-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fileInfo)
+          body: JSON.stringify({
+            clientName: clientNameInput.value.trim(),
+            cnpj: cnpjInput.value.trim(),
+            clientInfo: clientInfoInput.value.trim(),
+            files: files.map(f => ({ name: f.name, size: f.size, type: f.type }))
+          })
         });
-        const data = await response.json();
-        if (data.success) {
-          onSessionCreated(data);
-        } else {
-          throw new Error(data.message || 'Falha ao criar sessão no servidor.');
-        }
+
+        const prepareData = await prepareResponse.json();
+        if (!prepareData.success) throw new Error(prepareData.message);
+
+        let activeUploads = 0;
+        let fileIndex = 0;
+        let filesCompleted = 0;
+        
+        const processQueue = () => {
+          while (activeUploads < CONCURRENCY_LIMIT && fileIndex < files.length) {
+            activeUploads++;
+            const currentIndex = fileIndex++;
+            const file = files[currentIndex];
+            const uploadInfo = prepareData.uploads.find(u => u.fileName === file.name);
+
+            uploadFile(file, uploadInfo.uploadUrl, uploadInfo.size, (chunkSize) => {
+              totalSent += chunkSize;
+              updateProgress(totalSent / totalSize * 100, `Enviando ${filesCompleted + 1} de ${files.length}...`);
+            }).then(() => {
+                filesCompleted++;
+                activeUploads--;
+                if (filesCompleted === files.length) {
+                  updateProgress(100, "Concluído!");
+                  progressFill.style.backgroundColor = '#2ecc71';
+                  alert('Upload concluído com sucesso!');
+                  location.reload();
+                } else {
+                  processQueue();
+                }
+              }).catch(err => { 
+                alert(`Erro no upload: ${err.message}`); 
+                setControlsDisabled(false);
+              });
+          }
+        };
+        processQueue();
+
       } catch (error) {
-        onFailure(error);
+        alert(`Erro na preparação: ${error.message}`);
+        setControlsDisabled(false);
       }
     }
-    function onSessionCreated(response) {
-      uploadUrl = response.uploadUrl;
-      Notiflix.Loading.change('Enviando arquivo...');
-      uploadNextChunk();
+
+    function uploadFile(file, uploadUrl, fileSize, onProgress) {
+      return new Promise((resolve, reject) => {
+        let offset = 0;
+        const uploadNextChunk = async () => {
+          if (offset >= fileSize && fileSize > 0) { // Lida com arquivos maiores que 0
+             onProgress(fileSize - (offset - (file.slice(offset-chunkSize, offset)).size));
+             return resolve();
+          }
+          if (fileSize === 0){ // Lida com arquivos de 0kb
+             return resolve();
+          }
+          const chunk = file.slice(offset, offset + chunkSize);
+          try {
+            const res = await fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Range': `bytes ${offset}-${offset + chunk.size - 1}/${fileSize}` },
+              body: chunk
+            });
+            if (res.status !== 200 && res.status !== 201 && res.status !== 308) throw new Error(`Status ${res.status}`);
+            offset += chunk.size;
+            if (onProgress) onProgress(chunk.size);
+            uploadNextChunk();
+          } catch (err) {
+            reject(err);
+          }
+        };
+        uploadNextChunk();
+      });
     }
-    async function uploadNextChunk() {
-      if (offset >= file.size) { return; }
-      const chunkEnd = Math.min(offset + chunkSize, file.size);
-      const chunk = file.slice(offset, chunkEnd);
-      try {
-        const response = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Range': `bytes ${offset}-${chunkEnd - 1}/${file.size}` },
-          body: chunk
-        });
-        if (response.status === 308) {
-          offset = chunkEnd;
-          updateProgress(offset, file.size);
-          uploadNextChunk();
-        } else if (response.ok) {
-          updateProgress(file.size, file.size);
-          Notiflix.Loading.remove();
-          Notiflix.Notify.success('Upload concluído com sucesso!');
-          setControlsDisabled(false);
-          fileInputElement.value = '';
-          fileNameElement.textContent = 'Escolha outro arquivo para enviar.';
-        } else {
-          const errorText = await response.text();
-          throw new Error(`Erro no upload. Status: ${response.status}. Resposta: ${errorText}`);
-        }
-      } catch (error) {
-        onFailure(error);
-      }
+
+    function updateProgress(percent, text) {
+        const p = Math.min(100, Math.round(percent));
+        progressFill.style.width = `${p}%`;
+        progressFill.textContent = `${p}%`;
+        if (text) statusText.textContent = text;
     }
-    function updateProgress(sent, total) {
-      if (total === 0) return;
-      const percent = Math.round((sent / total) * 100);
-      progressFillElement.style.width = percent + '%';
-      const megabytesSent = (sent / (1024 * 1024)).toFixed(1);
-      const megabytesTotal = (total / (1024 * 1024)).toFixed(1);
-      Notiflix.Loading.change(`Enviando... ${percent}% (${megabytesSent}MB / ${megabytesTotal}MB)`);
-    }
-    function onFailure(error) {
-      Notiflix.Loading.remove();
-      Notiflix.Notify.failure(`ERRO: ${error.message}`);
-      console.error('Detalhes do erro:', error);
-      setControlsDisabled(false);
-    }
+    
     function setControlsDisabled(disabled) {
-      uploadButton.disabled = disabled;
-      fileInputElement.disabled = disabled;
+        fileInput.disabled = disabled;
+        uploadButton.disabled = disabled;
+        clientNameInput.disabled = disabled;
+        cnpjInput.disabled = disabled;
+        clientInfoInput.disabled = disabled;
+        dropZone.style.pointerEvents = disabled ? 'none' : 'auto';
+        dropZone.style.opacity = disabled ? 0.6 : 1;
     }
   </script>
 </body>
