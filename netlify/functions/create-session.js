@@ -1,5 +1,4 @@
 const { google } = require('googleapis');
-// ID da sua nova pasta "Arquivos Recebidos"
 const ROOT_FOLDER_ID = "1CddJNR01o31zCqijJvrbY5SpGzOT30bd";
 
 exports.handler = async function (event, context) {
@@ -13,8 +12,7 @@ exports.handler = async function (event, context) {
       private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     };
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
-    const authClient = await auth.getClient();
-    const drive = google.drive({ version: 'v3', auth: authClient });
+    const drive = google.drive({ version: 'v3', auth });
 
     // (O código de criação de pastas e txt permanece o mesmo)
     const clientFolder = await drive.files.create({ requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, fields: 'id', supportsAllDrives: true });
@@ -24,25 +22,28 @@ exports.handler = async function (event, context) {
     const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
     await drive.files.create({ requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] }, media: { mimeType: 'text/plain', body: textContent }, supportsAllDrives: true });
     
+    // =======================================================================
+    // CORREÇÃO AQUI: Voltando ao método padrão, mas injetando o cabeçalho 'Origin'
+    // =======================================================================
     const uploadSessions = await Promise.all(uploadData.files.map(async (fileInfo) => {
       const fileFolder = await drive.files.create({ requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] }, fields: 'id', supportsAllDrives: true });
       const fileFolderId = fileFolder.data.id;
 
-      // Usando o cliente autenticado para fazer a chamada explícita
-      const res = await authClient.request({
-        method: 'POST',
-        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream',
-          // =======================================================================
-          // CORREÇÃO DEFINITIVA AQUI: Avisando ao Google a origem do navegador
-          // =======================================================================
-          'Origin': event.headers.origin 
-        },
-        data: {
+      const res = await drive.files.create({
+        requestBody: {
           name: fileInfo.name,
           parents: [fileFolderId]
+        },
+        fields: 'id',
+        supportsAllDrives: true,
+      }, {
+        params: {
+          uploadType: 'resumable'
+        },
+        // Adicionando os cabeçalhos personalizados na chamada
+        headers: {
+          'Origin': event.headers.origin,
+          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream'
         }
       });
 
@@ -64,5 +65,6 @@ exports.handler = async function (event, context) {
     return { statusCode: 500, body: JSON.stringify({ success: false, message: errorMessage }) };
   }
 };
+
 
 
