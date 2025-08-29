@@ -1,5 +1,4 @@
 const { google } = require('googleapis');
-// ID da sua nova pasta "Arquivos Recebidos"
 const ROOT_FOLDER_ID = "1CddJNR01o31zCqijJvrbY5SpGzOT30bd";
 
 exports.handler = async function (event, context) {
@@ -13,7 +12,8 @@ exports.handler = async function (event, context) {
       private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     };
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
-    const drive = google.drive({ version: 'v3', auth });
+    const authClient = await auth.getClient(); // Força a autenticação
+    const drive = google.drive({ version: 'v3', auth: authClient });
 
     // 1. Criar a pasta do cliente
     const clientFolder = await drive.files.create({
@@ -26,15 +26,7 @@ exports.handler = async function (event, context) {
     // 2. Criar arquivo de texto com todas as informações
     const now = new Date();
     const timestamp = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeStyle: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
-    
-    const textContent = `INFORMAÇÕES DE ENVIO\n` +
-                        `-----------------------------\n` +
-                        `Cliente: ${uploadData.clientName}\n` +
-                        `CNPJ / Razão Social: ${uploadData.cnpj}\n` +
-                        `Data do Envio: ${timestamp}\n\n` +
-                        `Informações Adicionais:\n${uploadData.clientInfo}\n\n` +
-                        `Arquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
-
+    const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
     await drive.files.create({
       requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] },
       media: { mimeType: 'text/plain', body: textContent },
@@ -50,15 +42,26 @@ exports.handler = async function (event, context) {
       });
       const fileFolderId = fileFolder.data.id;
 
-      const res = await drive.files.create({
-        requestBody: { name: fileInfo.name, parents: [fileFolderId] },
-        fields: 'id',
-        supportsAllDrives: true,
-      }, { params: { uploadType: 'resumable' } });
+      // Usando o cliente autenticado para fazer a chamada explícita
+      const res = await authClient.request({
+        method: 'POST',
+        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream'
+        },
+        data: {
+          name: fileInfo.name,
+          parents: [fileFolderId]
+        }
+      });
+
+      const uploadUrl = res.headers.location;
+      if (!uploadUrl) throw new Error(`Google não retornou URL para ${fileInfo.name}`);
 
       return {
         fileName: fileInfo.name,
-        uploadUrl: res.headers.location,
+        uploadUrl: uploadUrl,
         size: fileInfo.size,
       };
     }));
@@ -71,3 +74,4 @@ exports.handler = async function (event, context) {
     return { statusCode: 500, body: JSON.stringify({ success: false, message: errorMessage }) };
   }
 };
+
