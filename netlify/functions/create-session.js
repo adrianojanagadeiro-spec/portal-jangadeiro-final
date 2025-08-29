@@ -12,9 +12,10 @@ exports.handler = async function (event, context) {
       private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     };
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
-    const drive = google.drive({ version: 'v3', auth });
+    const authClient = await auth.getClient();
+    const drive = google.drive({ version: 'v3', auth: authClient });
 
-    // (O código de criação de pastas e txt permanece o mesmo)
+    // (Criação de pastas e txt permanece igual)
     const clientFolder = await drive.files.create({ requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, fields: 'id', supportsAllDrives: true });
     const clientFolderId = clientFolder.data.id;
     const now = new Date();
@@ -23,27 +24,25 @@ exports.handler = async function (event, context) {
     await drive.files.create({ requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] }, media: { mimeType: 'text/plain', body: textContent }, supportsAllDrives: true });
     
     // =======================================================================
-    // CORREÇÃO AQUI: Voltando ao método padrão, mas injetando o cabeçalho 'Origin'
+    // USANDO O MÉTODO MAIS ROBUSTO E EXPLÍCITO
     // =======================================================================
     const uploadSessions = await Promise.all(uploadData.files.map(async (fileInfo) => {
       const fileFolder = await drive.files.create({ requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] }, fields: 'id', supportsAllDrives: true });
       const fileFolderId = fileFolder.data.id;
 
-      const res = await drive.files.create({
-        requestBody: {
+      // Requisição manual com todos os cabeçalhos necessários
+      const res = await authClient.request({
+        method: 'POST',
+        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream',
+          'X-Upload-Content-Length': fileInfo.size, // Parâmetro crucial que pode estar faltando
+          'Origin': event.headers.origin
+        },
+        data: {
           name: fileInfo.name,
           parents: [fileFolderId]
-        },
-        fields: 'id',
-        supportsAllDrives: true,
-      }, {
-        params: {
-          uploadType: 'resumable'
-        },
-        // Adicionando os cabeçalhos personalizados na chamada
-        headers: {
-          'Origin': event.headers.origin,
-          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream'
         }
       });
 
@@ -65,6 +64,7 @@ exports.handler = async function (event, context) {
     return { statusCode: 500, body: JSON.stringify({ success: false, message: errorMessage }) };
   }
 };
+
 
 
 
