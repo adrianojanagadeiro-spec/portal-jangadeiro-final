@@ -15,7 +15,6 @@ exports.handler = async function (event, context) {
     const authClient = await auth.getClient();
     const drive = google.drive({ version: 'v3', auth: authClient });
 
-    // (Criação de pastas e txt permanece igual)
     const clientFolder = await drive.files.create({ requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, fields: 'id', supportsAllDrives: true });
     const clientFolderId = clientFolder.data.id;
     const now = new Date();
@@ -23,21 +22,19 @@ exports.handler = async function (event, context) {
     const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
     await drive.files.create({ requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] }, media: { mimeType: 'text/plain', body: textContent }, supportsAllDrives: true });
     
-    // =======================================================================
-    // USANDO O MÉTODO MAIS ROBUSTO E EXPLÍCITO
-    // =======================================================================
     const uploadSessions = await Promise.all(uploadData.files.map(async (fileInfo) => {
       const fileFolder = await drive.files.create({ requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] }, fields: 'id', supportsAllDrives: true });
       const fileFolderId = fileFolder.data.id;
 
-      // Requisição manual com todos os cabeçalhos necessários
+      // =======================================================================
+      // CORREÇÃO FINAL AQUI: Adicionando supportsAllDrives=true na URL
+      // =======================================================================
       const res = await authClient.request({
         method: 'POST',
-        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',
           'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream',
-          'X-Upload-Content-Length': fileInfo.size, // Parâmetro crucial que pode estar faltando
           'Origin': event.headers.origin
         },
         data: {
