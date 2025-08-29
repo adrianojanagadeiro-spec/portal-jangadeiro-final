@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+// ID da sua nova pasta "Arquivos Recebidos"
 const ROOT_FOLDER_ID = "1CddJNR01o31zCqijJvrbY5SpGzOT30bd";
 
 exports.handler = async function (event, context) {
@@ -12,34 +13,19 @@ exports.handler = async function (event, context) {
       private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     };
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
-    const authClient = await auth.getClient(); // Força a autenticação
+    const authClient = await auth.getClient();
     const drive = google.drive({ version: 'v3', auth: authClient });
 
-    // 1. Criar a pasta do cliente
-    const clientFolder = await drive.files.create({
-      requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] },
-      fields: 'id',
-      supportsAllDrives: true,
-    });
+    // (O código de criação de pastas e txt permanece o mesmo)
+    const clientFolder = await drive.files.create({ requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, fields: 'id', supportsAllDrives: true });
     const clientFolderId = clientFolder.data.id;
-
-    // 2. Criar arquivo de texto com todas as informações
     const now = new Date();
     const timestamp = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeStyle: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
     const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
-    await drive.files.create({
-      requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] },
-      media: { mimeType: 'text/plain', body: textContent },
-      supportsAllDrives: true,
-    });
+    await drive.files.create({ requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] }, media: { mimeType: 'text/plain', body: textContent }, supportsAllDrives: true });
     
-    // 3. Criar subpastas e sessões de upload para cada arquivo
     const uploadSessions = await Promise.all(uploadData.files.map(async (fileInfo) => {
-      const fileFolder = await drive.files.create({
-        requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] },
-        fields: 'id',
-        supportsAllDrives: true,
-      });
+      const fileFolder = await drive.files.create({ requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] }, fields: 'id', supportsAllDrives: true });
       const fileFolderId = fileFolder.data.id;
 
       // Usando o cliente autenticado para fazer a chamada explícita
@@ -48,7 +34,11 @@ exports.handler = async function (event, context) {
         url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',
-          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream'
+          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream',
+          // =======================================================================
+          // CORREÇÃO DEFINITIVA AQUI: Avisando ao Google a origem do navegador
+          // =======================================================================
+          'Origin': event.headers.origin 
         },
         data: {
           name: fileInfo.name,
@@ -74,4 +64,5 @@ exports.handler = async function (event, context) {
     return { statusCode: 500, body: JSON.stringify({ success: false, message: errorMessage }) };
   }
 };
+
 
