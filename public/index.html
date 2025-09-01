@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upload de Arquivos - Jangadeiro Têxtil</title>
   <style>
-    /* SEU CSS ORIGINAL */
+    /* Seu CSS original... */
     body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; color: #333; }
     header { background-color: #444; padding: 15px; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
     header img { height: 60px; }
@@ -28,15 +28,9 @@
     #progress_bar { width: 100%; background-color: #eee; border-radius: 8px; overflow: hidden; }
     #progress_fill { width: 0%; height: 24px; background-color: #27ae60; border-radius: 8px; text-align: center; line-height: 24px; color: white; font-weight: bold; transition: width 0.3s; }
     #status_text { font-weight: bold; margin-top: 10px; min-height: 20px; }
-    
-    /* [NOVO] Estilos para a área de resultado */
-    #result_area { display: none; margin-top: 30px; padding: 20px; background-color: #f0fff4; border: 1px solid #27ae60; border-radius: 10px; text-align: left; }
-    #result_area h3 { color: #27ae60; margin-top: 0; display: flex; align-items: center; }
-    #result_area h3 svg { width: 24px; height: 24px; margin-right: 10px; }
-    .link-container { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-    #folder_link_input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; background-color: #fff; font-size: 14px; }
-    #copy_button { padding: 8px 12px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-    #copy_button:hover { background-color: #2980b9; }
+    #success_message { display: none; margin-top: 30px; padding: 20px; background-color: #f0fff4; border-left: 5px solid #27ae60; text-align: left; }
+    #success_message h3 { color: #27ae60; margin-top: 0; display: flex; align-items: center; }
+    #success_message h3 svg { width: 24px; height: 24px; margin-right: 10px; }
   </style>
 </head>
 <body>
@@ -62,20 +56,13 @@
           <p id="status_text"></p>
           <div id="progress_bar"><div id="progress_fill">0%</div></div>
         </div>
-        
-        <!-- [NOVO] Área de resultado -->
-        <div id="result_area">
-            <h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>Envio Concluído!</h3>
-            <p>Os arquivos foram recebidos com sucesso. Use o link abaixo para acessá-los:</p>
-            <div class="link-container">
-                <input type="text" id="folder_link_input" readonly>
-                <button id="copy_button">Copiar</button>
-            </div>
+        <div id="success_message">
+          <h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>Envio Concluído!</h3>
+          <p>Seus arquivos foram recebidos com sucesso. Nossa equipe já foi notificada. Obrigado!</p>
         </div>
       </div>
     </div>
   </main>
-
   <script>
     const CONCURRENCY_LIMIT = 3;
     const chunkSize = 10 * 1024 * 1024;
@@ -89,9 +76,7 @@
     const progressWrapper = document.getElementById('progress_wrapper');
     const progressFill = document.getElementById('progress_fill');
     const statusText = document.getElementById('status_text');
-    const resultArea = document.getElementById('result_area'); // [NOVO]
-    const folderLinkInput = document.getElementById('folder_link_input'); // [NOVO]
-    const copyButton = document.getElementById('copy_button'); // [NOVO]
+    const successMessage = document.getElementById('success_message');
     
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -99,10 +84,9 @@
     dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); fileInput.files = e.dataTransfer.files; updateFileList(); });
     fileInput.addEventListener('change', updateFileList);
     uploadButton.addEventListener('click', startUpload);
-    copyButton.addEventListener('click', copyLinkToClipboard); // [NOVO]
 
     function updateFileList() {
-      resultArea.style.display = 'none'; // [NOVO]
+      successMessage.style.display = 'none';
       progressWrapper.style.display = 'none';
       if (fileInput.files.length > 0) {
         fileList.innerHTML = Array.from(fileInput.files).map(f => `<div>- ${f.name}</div>`).join('');
@@ -143,14 +127,10 @@
                 if (filesCompleted === files.length) {
                   updateProgress(100, "Concluído!");
                   progressFill.style.backgroundColor = '#2ecc71';
-                  
-                  // [MODIFICADO] Exibe a nova área de resultado
-                  folderLinkInput.value = prepareData.clientFolderLink;
-                  resultArea.style.display = 'block';
+                  successMessage.style.display = 'block';
                   setControlsDisabled(false);
                   uploadButton.disabled = true;
                   fileList.textContent = 'Envio concluído. Selecione novos arquivos para começar.';
-
                 } else {
                   processQueue();
                 }
@@ -171,8 +151,7 @@
       return new Promise((resolve, reject) => {
         let offset = 0;
         const uploadNextChunk = async () => {
-          if (fileSize === 0) return resolve();
-          if (offset >= fileSize) return resolve();
+          if (fileSize === 0) return resolve(); if (offset >= fileSize) return resolve();
           const chunk = file.slice(offset, offset + chunkSize);
           try {
             const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Range': `bytes ${offset}-${offset + chunk.size - 1}/${fileSize}` }, body: chunk });
@@ -187,22 +166,12 @@
         uploadNextChunk();
       });
     }
-
-    // [NOVO] Função para o botão de copiar
-    function copyLinkToClipboard() {
-        folderLinkInput.select();
-        document.execCommand("copy");
-        copyButton.textContent = 'Copiado!';
-        setTimeout(() => { copyButton.textContent = 'Copiar'; }, 2000);
-    }
-    
     function updateProgress(percent, text) {
         const p = Math.min(100, Math.round(percent));
         progressFill.style.width = `${p}%`;
         progressFill.textContent = `${p}%`;
         if (text) statusText.textContent = text;
     }
-    
     function setControlsDisabled(disabled) {
         fileInput.disabled = disabled;
         uploadButton.disabled = disabled;
@@ -215,3 +184,4 @@
   </script>
 </body>
 </html>
+
