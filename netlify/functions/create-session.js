@@ -14,6 +14,7 @@ exports.handler = async function (event, context) {
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
     const drive = google.drive({ version: 'v3', auth });
 
+    // 1. Criar a pasta do cliente e já pedir o link dela
     const clientFolder = await drive.files.create({ 
       requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, 
       fields: 'id, webViewLink',
@@ -23,19 +24,19 @@ exports.handler = async function (event, context) {
     const clientFolderLink = clientFolder.data.webViewLink;
 
     // =======================================================================
-    // MUDANÇA AQUI: Criando a permissão para o link ser público
+    // MUDANÇA CRÍTICA AQUI: Criando a permissão PÚBLICA para a pasta do cliente
     // =======================================================================
     await drive.permissions.create({
       fileId: clientFolderId,
       requestBody: {
         role: 'reader', // Qualquer pessoa com o link pode visualizar
-        type: 'anyone'
+        type: 'anyone'  // O tipo de permissão é 'qualquer pessoa'
       },
-      supportsAllDrives: true,
+      supportsAllDrives: true, // Parâmetro essencial para Drives Compartilhados
     });
     // =======================================================================
     
-    // O resto da função permanece igual...
+    // O resto da função permanece exatamente igual ao seu código funcional
     const now = new Date();
     const timestamp = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeStyle: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
     const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
@@ -66,6 +67,7 @@ exports.handler = async function (event, context) {
     return { statusCode: 500, body: JSON.stringify({ success: false, message: errorMessage }) };
   }
 };
+
 
 
 
