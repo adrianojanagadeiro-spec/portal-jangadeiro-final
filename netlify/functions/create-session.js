@@ -12,24 +12,30 @@ exports.handler = async function (event, context) {
       private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     };
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
-    const authClient = await auth.getClient();
-    const drive = google.drive({ version: 'v3', auth: authClient });
+    const drive = google.drive({ version: 'v3', auth });
 
-    // =======================================================================
-    // 1ª MUDANÇA: Pedimos o 'webViewLink' junto com o 'id'
-    // =======================================================================
     const clientFolder = await drive.files.create({ 
       requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, 
-      fields: 'id, webViewLink', // Adicionado webViewLink aqui
+      fields: 'id, webViewLink',
       supportsAllDrives: true 
     });
     const clientFolderId = clientFolder.data.id;
-    // =======================================================================
-    // 2ª MUDANÇA: Guardamos o link em uma variável
-    // =======================================================================
     const clientFolderLink = clientFolder.data.webViewLink;
 
-
+    // =======================================================================
+    // MUDANÇA AQUI: Criando a permissão para o link ser público
+    // =======================================================================
+    await drive.permissions.create({
+      fileId: clientFolderId,
+      requestBody: {
+        role: 'reader', // Qualquer pessoa com o link pode visualizar
+        type: 'anyone'
+      },
+      supportsAllDrives: true,
+    });
+    // =======================================================================
+    
+    // O resto da função permanece igual...
     const now = new Date();
     const timestamp = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeStyle: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
     const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
@@ -39,33 +45,19 @@ exports.handler = async function (event, context) {
       const fileFolder = await drive.files.create({ requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] }, fields: 'id', supportsAllDrives: true });
       const fileFolderId = fileFolder.data.id;
 
-      const res = await authClient.request({
-        method: 'POST',
-        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream',
-          'Origin': event.headers.origin
-        },
-        data: {
-          name: fileInfo.name,
-          parents: [fileFolderId]
-        }
-      });
-
-      const uploadUrl = res.headers.location;
-      if (!uploadUrl) throw new Error(`Google não retornou URL para ${fileInfo.name}`);
+      const res = await drive.files.create({
+        requestBody: { name: fileInfo.name, parents: [fileFolderId] },
+        fields: 'id',
+        supportsAllDrives: true,
+      }, { params: { uploadType: 'resumable' } });
 
       return {
         fileName: fileInfo.name,
-        uploadUrl: uploadUrl,
+        uploadUrl: res.headers.location,
         size: fileInfo.size,
       };
     }));
     
-    // =======================================================================
-    // 3ª MUDANÇA: Adicionamos o 'clientFolderLink' na resposta para o frontend
-    // =======================================================================
     return { statusCode: 200, body: JSON.stringify({ success: true, uploads: uploadSessions, clientFolderLink: clientFolderLink }) };
 
   } catch (error) {
