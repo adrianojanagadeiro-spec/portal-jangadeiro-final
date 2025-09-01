@@ -15,20 +15,37 @@ exports.handler = async function (event, context) {
     const authClient = await auth.getClient();
     const drive = google.drive({ version: 'v3', auth: authClient });
 
-    // [ADIÇÃO 1 de 3] Pedimos o 'webViewLink' junto com o 'id'
+    // =======================================================================
+    // MUDANÇA AQUI: Criando o nome da pasta principal
+    // =======================================================================
+    // Se o CNPJ for preenchido, adiciona ao nome. Senão, usa só a Marca/Sala.
+    const clientFolderName = uploadData.cnpj ? `${uploadData.clientName} - ${uploadData.cnpj}` : uploadData.clientName;
+    
     const clientFolder = await drive.files.create({ 
-      requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, 
-      fields: 'id, webViewLink', // Adicionado webViewLink aqui
+      requestBody: { 
+        name: clientFolderName, // Usando o novo nome da pasta
+        mimeType: 'application/vnd.google-apps.folder', 
+        parents: [ROOT_FOLDER_ID] 
+      }, 
+      fields: 'id, webViewLink',
       supportsAllDrives: true 
     });
     const clientFolderId = clientFolder.data.id;
-    // [ADIÇÃO 2 de 3] Guardamos o link em uma variável
     const clientFolderLink = clientFolder.data.webViewLink;
+    // =======================================================================
 
     const now = new Date();
     const timestamp = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeStyle: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
-    const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
-    await drive.files.create({ requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] }, media: { mimeType: 'text/plain', body: textContent }, supportsAllDrives: true });
+    
+    // MUDANÇA AQUI: Atualizando o conteúdo do arquivo de texto para refletir os novos campos
+    const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nMarca / Sala: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
+    
+    // MUDANÇA AQUI: Renomeando o arquivo de texto
+    await drive.files.create({ 
+      requestBody: { name: `${clientFolderName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] }, 
+      media: { mimeType: 'text/plain', body: textContent }, 
+      supportsAllDrives: true 
+    });
     
     const uploadSessions = await Promise.all(uploadData.files.map(async (fileInfo) => {
       const fileFolder = await drive.files.create({ requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] }, fields: 'id', supportsAllDrives: true });
@@ -58,7 +75,6 @@ exports.handler = async function (event, context) {
       };
     }));
     
-    // [ADIÇÃO 3 de 3] Adicionamos o 'clientFolderLink' na resposta para o frontend
     return { statusCode: 200, body: JSON.stringify({ success: true, uploads: uploadSessions, clientFolderLink: clientFolderLink }) };
 
   } catch (error) {
