@@ -12,53 +12,51 @@ exports.handler = async function (event, context) {
       private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     };
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive'] });
-    const authClient = await auth.getClient();
-    const drive = google.drive({ version: 'v3', auth: authClient });
+    const drive = google.drive({ version: 'v3', auth });
 
-    // [ADIÇÃO 1 de 3] Pedimos o 'webViewLink' junto com o 'id'
+    // 1. Criar a pasta do cliente e já pedir o link dela
     const clientFolder = await drive.files.create({ 
       requestBody: { name: uploadData.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [ROOT_FOLDER_ID] }, 
-      fields: 'id, webViewLink', // Adicionado webViewLink aqui
+      fields: 'id, webViewLink',
       supportsAllDrives: true 
     });
     const clientFolderId = clientFolder.data.id;
-    // [ADIÇÃO 2 de 3] Guardamos o link em uma variável
     const clientFolderLink = clientFolder.data.webViewLink;
 
+    // 2. TORNAR A PASTA PÚBLICA (A chamada correta)
+    await drive.permissions.create({
+      fileId: clientFolderId,
+      requestBody: {
+        role: 'reader', // Qualquer pessoa com o link pode visualizar
+        type: 'anyone'  // O tipo de permissão é 'qualquer pessoa'
+      },
+      supportsAllDrives: true, // Parâmetro essencial para Drives Compartilhados
+    });
+
+    // 3. Criar arquivo de texto
     const now = new Date();
     const timestamp = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeStyle: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
     const textContent = `INFORMAÇÕES DE ENVIO\n-----------------------------\nCliente: ${uploadData.clientName}\nCNPJ / Razão Social: ${uploadData.cnpj}\nData do Envio: ${timestamp}\n\nInformações Adicionais:\n${uploadData.clientInfo}\n\nArquivos Enviados:\n${uploadData.files.map(f => `- ${f.name}`).join('\n')}`;
     await drive.files.create({ requestBody: { name: `${uploadData.clientName} - Infos.txt`, mimeType: 'text/plain', parents: [clientFolderId] }, media: { mimeType: 'text/plain', body: textContent }, supportsAllDrives: true });
     
+    // 4. Criar subpastas e sessões de upload
     const uploadSessions = await Promise.all(uploadData.files.map(async (fileInfo) => {
       const fileFolder = await drive.files.create({ requestBody: { name: fileInfo.name, mimeType: 'application/vnd.google-apps.folder', parents: [clientFolderId] }, fields: 'id', supportsAllDrives: true });
       const fileFolderId = fileFolder.data.id;
 
-      const res = await authClient.request({
-        method: 'POST',
-        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'X-Upload-Content-Type': fileInfo.type || 'application/octet-stream',
-          'Origin': event.headers.origin
-        },
-        data: {
-          name: fileInfo.name,
-          parents: [fileFolderId]
-        }
-      });
-
-      const uploadUrl = res.headers.location;
-      if (!uploadUrl) throw new Error(`Google não retornou URL para ${fileInfo.name}`);
+      const res = await drive.files.create({
+        requestBody: { name: fileInfo.name, parents: [fileFolderId] },
+        fields: 'id',
+        supportsAllDrives: true,
+      }, { params: { uploadType: 'resumable' } });
 
       return {
         fileName: fileInfo.name,
-        uploadUrl: uploadUrl,
+        uploadUrl: res.headers.location,
         size: fileInfo.size,
       };
     }));
     
-    // [ADIÇÃO 3 de 3] Adicionamos o 'clientFolderLink' na resposta para o frontend
     return { statusCode: 200, body: JSON.stringify({ success: true, uploads: uploadSessions, clientFolderLink: clientFolderLink }) };
 
   } catch (error) {
@@ -67,6 +65,7 @@ exports.handler = async function (event, context) {
     return { statusCode: 500, body: JSON.stringify({ success: false, message: errorMessage }) };
   }
 };
+
 
 
 
